@@ -3,6 +3,7 @@ import { callAI } from './aiService.js';
 import { retry } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import { logQuery } from '../repositories/queryRepository.js';
+import { config } from '../config/index.js';
 
 export const createInsight = async ({
   tenantId,
@@ -11,19 +12,28 @@ export const createInsight = async ({
 }) => {
   const start = Date.now();
 
-  // 🔹 Step 1: Load tenant context
+  // ✅ Input validation
+  if (!tenantId || !queryText?.trim()) {
+    throw new Error('Invalid input: tenantId and queryText required');
+  }
+
+  // 🔹 Load tenant context
   const context = await getTenantContext(tenantId);
 
   if (!context) {
     const latency = Date.now() - start;
 
-    await logQuery({
-      tenantId,
-      queryText,
-      response: 'No context found',
-      status: 'FAILED',
-      latencyMs: latency,
-    });
+    try {
+      await logQuery({
+        tenantId,
+        queryText,
+        response: 'No context found',
+        status: 'FAILED',
+        latencyMs: latency,
+      });
+    } catch (err) {
+      logger.error({ requestId, event: 'LOGGING_FAILED', error: err.message });
+    }
 
     return {
       status: 'FAILED',
@@ -33,7 +43,7 @@ export const createInsight = async ({
   }
 
   try {
-    // 🔹 Step 2: Call AI with retry
+    // 🔹 AI call with retry (config-driven)
     const aiResponse = await retry(
       () =>
         callAI({
@@ -41,22 +51,24 @@ export const createInsight = async ({
           context,
           requestId,
         }),
-      2, // retry count
-      100 // initial delay
+      config.ai.retryCount,
+      config.ai.retryDelay
     );
 
     const latency = Date.now() - start;
 
-    // 🔹 Step 3: Log success in DB
-    await logQuery({
-      tenantId,
-      queryText,
-      response: aiResponse.insight,
-      status: 'SUCCESS',
-      latencyMs: latency,
-    });
+    try {
+      await logQuery({
+        tenantId,
+        queryText,
+        response: aiResponse.insight,
+        status: 'SUCCESS',
+        latencyMs: latency,
+      });
+    } catch (err) {
+      logger.error({ requestId, event: 'LOGGING_FAILED', error: err.message });
+    }
 
-    // 🔹 Step 4: Return success response
     return {
       status: 'SUCCESS',
       insight: aiResponse.insight,
@@ -65,7 +77,6 @@ export const createInsight = async ({
   } catch (err) {
     const latency = Date.now() - start;
 
-    // 🔹 Step 5: Log error (structured logging)
     logger.error({
       requestId,
       tenantId,
@@ -74,16 +85,22 @@ export const createInsight = async ({
       latencyMs: latency,
     });
 
-    // 🔹 Step 6: Log failure in DB
-    await logQuery({
-      tenantId,
-      queryText,
-      response: 'Fallback insight',
-      status: 'FAILED',
-      latencyMs: latency,
-    });
+    try {
+      await logQuery({
+        tenantId,
+        queryText,
+        response: 'Fallback insight',
+        status: 'FAILED',
+        latencyMs: latency,
+      });
+    } catch (logErr) {
+      logger.error({
+        requestId,
+        event: 'LOGGING_FAILED',
+        error: logErr.message,
+      });
+    }
 
-    // 🔹 Step 7: Return fallback response
     return {
       status: 'PARTIAL_SUCCESS',
       insight: 'AI service unavailable, returning fallback insight',

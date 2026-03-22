@@ -17,11 +17,17 @@ export const callAI = async (payload) => {
       signal: controller.signal,
     });
 
-    if (!res.ok) throw new AIServiceError();
+    if (!res.ok) {
+      throw new AIServiceError(`AI responded with status ${res.status}`);
+    }
 
     return await res.json();
   } catch (err) {
-    throw new AIServiceError(err.message);
+    if (err.name === 'AbortError') {
+      throw new AIServiceError('AI request timeout');
+    }
+
+    throw new AIServiceError(err.message, { cause: err });
   } finally {
     clearTimeout(timeout);
   }

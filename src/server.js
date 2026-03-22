@@ -3,6 +3,7 @@ import { config } from './config/index.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import insightRoutes from './routes/insightRoutes.js';
+import { logger } from './utils/logger.js';
 
 const app = express();
 
@@ -18,5 +19,5 @@ app.get('/health', (req, res) => {
 app.use(errorHandler);
 
 app.listen(config.port, () => {
-  console.log(`Server running on port ${config.port}`);
+  logger.info(`Server running on port ${config.port}`);
 });
