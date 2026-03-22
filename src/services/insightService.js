@@ -76,16 +76,17 @@ export const createInsight = async ({
       tenantId: normalizedTenantId,
     });
 
-    const insight = await retry(
-      async () => {
-        return await callAI({
-          queryText: normalizedQueryText,
-          context,
-        });
-      },
-      config.ai.retryCount,
-      config.ai.retryDelay
-    );
+   const insight = await retry(
+  async () => {
+    return await callAI({
+      queryText: normalizedQueryText,
+      context,
+      requestId: reqId, // 🔥 ADD THIS
+    });
+  },
+  config.ai.retryCount,
+  config.ai.retryDelay
+);
 
     logger.info({
       requestId: reqId,
