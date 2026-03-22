@@ -8,6 +8,7 @@ import { retry } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import { saveQueryLog } from '../repositories/queryRepository.js';
 import { config } from '../config/index.js';
+import { AppError } from '../errors/AppError.js';
 
 /**
  * Core business logic: Create insight
@@ -23,60 +24,73 @@ export const createInsight = async ({
   const reqId =
     requestId || `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
-  // 🔹 Input validation
-  if (!tenantId || !queryText?.trim()) {
-    throw new Error('INVALID_INPUT');
+  // =========================
+  // 🔹 STRICT INPUT VALIDATION
+  // =========================
+  if (!tenantId || typeof tenantId !== 'string') {
+    throw new AppError('Invalid tenantId', 400, 'INVALID_INPUT');
   }
+
+  if (!queryText || typeof queryText !== 'string' || !queryText.trim()) {
+    throw new AppError('Invalid queryText', 400, 'INVALID_INPUT');
+  }
+
+  // 🔹 Normalize input
+  const normalizedTenantId = tenantId.trim();
+  const normalizedQueryText = queryText.trim();
 
   try {
     // =========================
     // 1. Fetch Tenant Context
     // =========================
 
-    // 🔥 START LOG
     logger.info({
       requestId: reqId,
       event: 'CONTEXT_FETCH_START',
-      tenantId,
+      tenantId: normalizedTenantId,
     });
 
-    const context = await getTenantContext(tenantId);
+    const context = await getTenantContext(normalizedTenantId);
 
-    // 🔥 SUCCESS LOG
     logger.info({
       requestId: reqId,
       event: 'CONTEXT_FETCH_SUCCESS',
-      tenantId,
+      tenantId: normalizedTenantId,
     });
 
     if (!context) {
-      throw new Error('CONTEXT_NOT_FOUND');
+      throw new AppError(
+        'Tenant context not found',
+        404,
+        'CONTEXT_NOT_FOUND'
+      );
     }
 
     // =========================
     // 2. Call AI (with retry)
     // =========================
 
-    // 🔥 START LOG
     logger.info({
       requestId: reqId,
       event: 'AI_CALL_START',
+      tenantId: normalizedTenantId,
     });
 
     const insight = await retry(
-      () =>
-        callAI({
-          queryText,
+      async () => {
+        return await callAI({
+          queryText: normalizedQueryText,
           context,
-        }),
+        });
+      },
       config.ai.retryCount,
       config.ai.retryDelay
     );
 
-    // 🔥 SUCCESS LOG
     logger.info({
       requestId: reqId,
       event: 'AI_CALL_SUCCESS',
+      tenantId: normalizedTenantId,
     });
 
     const latency = Date.now() - start;
@@ -85,8 +99,8 @@ export const createInsight = async ({
     // 3. Save SUCCESS log
     // =========================
     await safeLog({
-      tenantId,
-      queryText,
+      tenantId: normalizedTenantId,
+      queryText: normalizedQueryText,
       response: insight,
       status: 'SUCCESS',
       latency,
@@ -104,12 +118,15 @@ export const createInsight = async ({
   } catch (error) {
     const latency = Date.now() - start;
 
-    // 🔥 FAILURE LOG
+    // =========================
+    // 🔥 FAILURE LOG (ENHANCED)
+    // =========================
     logger.error({
       requestId: reqId,
-      tenantId,
+      tenantId: normalizedTenantId,
       event: 'INSIGHT_FAILED',
       error: error.message,
+      errorCode: error.code || 'UNKNOWN_ERROR',
       latencyMs: latency,
     });
 
@@ -117,8 +134,8 @@ export const createInsight = async ({
     // 5. Save FAILURE log
     // =========================
     await safeLog({
-      tenantId,
-      queryText,
+      tenantId: normalizedTenantId,
+      queryText: normalizedQueryText,
       response: error.message,
       status: 'FAILURE',
       latency,
@@ -126,7 +143,7 @@ export const createInsight = async ({
     });
 
     // =========================
-    // 6. Throw error (controller handles mapping)
+    // 6. Rethrow (controller handles mapping)
     // =========================
     throw error;
   }

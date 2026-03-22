@@ -1,7 +1,11 @@
+// =========================
+// FILE: src/errors/AIServiceError.js
+// =========================
+
 import { AppError } from './AppError.js';
 
 export class AIServiceError extends AppError {
-  constructor(message = 'AI Service Failed') {
-    super(message, 502);
+  constructor(message = 'AI service failed') {
+    super(message, 502, 'AI_SERVICE_ERROR');
   }
 }

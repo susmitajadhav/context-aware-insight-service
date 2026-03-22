@@ -78,57 +78,30 @@ export const createInsightController = async (req, res) => {
       event: 'REQUEST_FAILED',
       tenantId,
       error: error.message,
+      errorCode: error.code || 'UNKNOWN_ERROR',
       stack: error.stack,
     });
 
-    // =========================
-    // Safe Error Mapping
-    // =========================
-    const { statusCode, message } = mapErrorToResponse(error);
+    console.log('🔥 ACTUAL ERROR:', error);
 
-    return res.status(statusCode).json({
+    // =========================
+    // ✅ FIXED: Proper Error Handling
+    // =========================
+
+    // If it's a known AppError (has statusCode)
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        message: error.message,
+        requestId,
+      });
+    }
+
+    // Fallback for unknown errors
+    return res.status(500).json({
       status: 'error',
-      message,
+      message: 'Internal server error',
       requestId,
     });
-  }
-};
-
-// =========================
-// Error Mapping Function
-// =========================
-
-const mapErrorToResponse = (error) => {
-  switch (error.message) {
-    case 'INVALID_INPUT':
-      return {
-        statusCode: 400,
-        message: 'Invalid request input',
-      };
-
-    case 'CONTEXT_NOT_FOUND':
-      return {
-        statusCode: 404,
-        message: 'Tenant context not found',
-      };
-
-    case 'TENANT_NOT_FOUND':
-      return {
-        statusCode: 404,
-        message: 'Tenant not found',
-      };
-
-    case 'AI_FAILURE':
-    case 'AI_SERVICE_FAILURE':
-      return {
-        statusCode: 502,
-        message: 'AI service failed to process request',
-      };
-
-    default:
-      return {
-        statusCode: 500,
-        message: 'Internal server error',
-      };
   }
 };
