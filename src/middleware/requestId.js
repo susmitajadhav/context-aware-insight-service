@@ -1,6 +1,15 @@
-import { v4 as uuidv4 } from 'uuid';
+// =========================
+// FILE: src/middleware/requestId.js
+// =========================
 
 export const requestIdMiddleware = (req, res, next) => {
-  req.requestId = uuidv4();
+  const requestId =
+    req.headers['x-request-id'] ||
+    `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+  req.requestId = requestId;
+
+  res.setHeader('x-request-id', requestId);
+
   next();
 };

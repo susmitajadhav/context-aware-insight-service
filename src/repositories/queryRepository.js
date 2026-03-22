@@ -1,16 +1,9 @@
-import { pool } from '../config/db.js';
+import pool from '../config/db.js';
 
-export const logQuery = async ({
-  tenantId,
-  queryText,
-  response,
-  status,
-  latencyMs,
-}) => {
+export const saveQueryLog = async ({ tenantId, queryText, response, latency, status }) => {
   await pool.query(
-    `INSERT INTO query_logs 
-    (tenant_id, query_text, response, status, latency_ms)
-    VALUES ($1, $2, $3, $4, $5)`,
-    [tenantId, queryText, response, status, latencyMs]
+    `INSERT INTO query_logs (tenant_id, query_text, response, latency_ms, status)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [tenantId, queryText, response, latency, status]
   );
 };

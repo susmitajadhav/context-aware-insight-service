@@ -1,9 +1,26 @@
+// =========================
+// FILE: src/routes/insightRoutes.js
+// =========================
+
 import express from 'express';
-import { createInsightHandler } from '../controllers/insightController.js';
-import { validateInsightRequest } from '../middleware/validateRequest.js';
+import { createInsightController } from '../controllers/insightController.js';
 
 const router = express.Router();
 
-router.post('/insight-query', validateInsightRequest, createInsightHandler);
+/**
+ * Health Check (IMPORTANT for production)
+ */
+router.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    message: 'Insight service is running',
+  });
+});
+
+/**
+ * Insight Query Endpoint
+ * POST /api/v1/insight-query
+ */
+router.post('/v1/insight-query', createInsightController);
 
 export default router;
